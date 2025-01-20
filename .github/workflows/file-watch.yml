@@ -1,0 +1,35 @@
+name: File Watcher
+
+on:
+  push:
+
+jobs:
+  file-watch:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      - name: Identify .py files
+        id: files
+        run: |
+          files=$(git diff --name-only ${{ github.event.before }} ${{ github.sha }} | grep '\.py$' || true)
+          echo "changed_files=$files" >> $GITHUB_ENV
+
+      - name: Create or update issue for new file
+        if: env.changed_files
+        run: |
+          for file in ${{ env.changed_files }}; do
+            title="File: $file"
+            content=$(cat "$file")
+            issue=$(gh issue list --search "$title" --limit 1)
+            if [ -z "$issue" ]; then
+              gh issue create --title "$title" --body "$content"
+            else
+              issue_number=$(echo "$issue" | awk '{print $1}')
+              gh issue edit $issue_number --body "$content"
+            fi
+          done
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
